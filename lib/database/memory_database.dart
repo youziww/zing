@@ -1,17 +1,56 @@
+import 'dart:convert';
 import 'package:sqflite/sqflite.dart';
+import 'web_storage.dart' as storage;
+
+const _storageKey = 'zing_db';
 
 /// A minimal in-memory Database implementation for web preview.
-/// Does not parse SQL - uses table-based Map storage.
+/// Automatically persists to localStorage after writes.
 class MemoryDatabase implements Database {
   final Map<String, List<Map<String, dynamic>>> _tables = {};
   bool _isOpen = true;
   int _lastInsertId = 0;
+  bool _batchMode = false;
+
+  /// Suppress auto-persistence during bulk operations.
+  void beginBatch() => _batchMode = true;
+  void endBatch() {
+    _batchMode = false;
+    _persist();
+  }
 
   @override
   String get path => ':memory:';
 
   @override
   bool get isOpen => _isOpen;
+
+  /// Try to restore from localStorage. Returns true if restored.
+  bool restoreFromStorage() {
+    final json = storage.webStorageGet(_storageKey);
+    if (json == null) return false;
+    try {
+      final data = jsonDecode(json) as Map<String, dynamic>;
+      _tables.clear();
+      for (final entry in data.entries) {
+        _tables[entry.key] = (entry.value as List)
+            .map((row) => Map<String, dynamic>.from(row as Map))
+            .toList();
+      }
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  void _persist() {
+    if (_batchMode) return;
+    try {
+      storage.webStorageSet(_storageKey, jsonEncode(_tables));
+    } catch (_) {
+      // Silently fail if storage is full or unavailable
+    }
+  }
 
   @override
   Future<void> close() async {
@@ -20,7 +59,6 @@ class MemoryDatabase implements Database {
 
   @override
   Future<void> execute(String sql, [List<Object?>? arguments]) async {
-    // Just track table creation, ignore indexes etc
     final createMatch = RegExp(r'CREATE\s+TABLE\s+(\w+)', caseSensitive: false)
         .firstMatch(sql);
     if (createMatch != null) {
@@ -41,6 +79,7 @@ class MemoryDatabase implements Database {
 
     rows.add(Map<String, dynamic>.from(values));
     _lastInsertId = values['id'] as int? ?? ++_lastInsertId;
+    _persist();
     return _lastInsertId;
   }
 
@@ -88,6 +127,7 @@ class MemoryDatabase implements Database {
         count++;
       }
     }
+    if (count > 0) _persist();
     return count;
   }
 
@@ -102,7 +142,9 @@ class MemoryDatabase implements Database {
     } else {
       rows.clear();
     }
-    return before - rows.length;
+    final deleted = before - rows.length;
+    if (deleted > 0) _persist();
+    return deleted;
   }
 
   @override
@@ -136,10 +178,34 @@ class MemoryDatabase implements Database {
           .where((c) => c['did'] == deckId)
           .map((c) => c['nid'])
           .toSet();
-      return notes
+      var result = notes
           .where((n) => noteIds.contains(n['id']))
           .map((n) => Map<String, dynamic>.from(n))
           .toList();
+      // Apply ORDER BY
+      final orderMatch = RegExp(r'ORDER\s+BY\s+n\.(\w+)\s*(ASC|DESC)?',
+              caseSensitive: false)
+          .firstMatch(sql);
+      if (orderMatch != null) {
+        final col = orderMatch.group(1)!;
+        final desc = orderMatch.group(2)?.toUpperCase() == 'DESC';
+        result.sort((a, b) {
+          final va = a[col], vb = b[col];
+          if (va == null && vb == null) return 0;
+          if (va == null) return desc ? 1 : -1;
+          if (vb == null) return desc ? -1 : 1;
+          final cmp = Comparable.compare(va as Comparable, vb as Comparable);
+          return desc ? -cmp : cmp;
+        });
+      }
+      // Apply LIMIT
+      final limitMatch =
+          RegExp(r'LIMIT\s+\?', caseSensitive: false).firstMatch(sql);
+      if (limitMatch != null && arguments.length >= 2) {
+        final limit = arguments[1] as int;
+        if (result.length > limit) result = result.sublist(0, limit);
+      }
+      return result;
     }
 
     // Handle revlog queries with cid IN subquery
@@ -188,6 +254,7 @@ class MemoryDatabase implements Database {
           count++;
         }
       }
+      if (count > 0) _persist();
       return count;
     }
     return 0;
@@ -202,18 +269,12 @@ class MemoryDatabase implements Database {
 
   bool _matchesWhere(
       Map<String, dynamic> row, String where, List<Object?> args) {
-    // Parse simple conditions joined by AND/OR
-    // Support: col = ?, col <= ?, col >= ?, col < ?, col > ?
-    // Support: col LIKE ?, (col = ? OR col = ?)
     var argIndex = 0;
-
-    // Flatten parentheses for simple OR groups
     var cleaned = where.replaceAll('(', '').replaceAll(')', '');
 
     final orParts = cleaned.split(RegExp(r'\s+OR\s+', caseSensitive: false));
     if (orParts.length > 1 &&
         !cleaned.contains(RegExp(r'\s+AND\s+', caseSensitive: false))) {
-      // Pure OR expression
       for (final part in orParts) {
         final condArgStart = argIndex;
         final condArgCount = '?'.allMatches(part).length;
@@ -226,14 +287,12 @@ class MemoryDatabase implements Database {
       return false;
     }
 
-    // AND expressions (possibly with OR sub-groups)
     final andParts = cleaned.split(RegExp(r'\s+AND\s+', caseSensitive: false));
     for (final part in andParts) {
       final condArgCount = '?'.allMatches(part).length;
       final subArgs = args.sublist(argIndex, argIndex + condArgCount);
       argIndex += condArgCount;
 
-      // Check OR within this AND part
       final subOrParts = part.split(RegExp(r'\s+OR\s+', caseSensitive: false));
       if (subOrParts.length > 1) {
         bool anyMatch = false;
@@ -256,32 +315,27 @@ class MemoryDatabase implements Database {
 
   bool _evalCondition(
       Map<String, dynamic> row, String cond, List<Object?> args) {
-    // col = ?
     var m = RegExp(r'(\w+)\s*=\s*\?').firstMatch(cond);
     if (m != null) return row[m.group(1)] == args[0];
 
-    // col <= ?
     m = RegExp(r'(\w+)\s*<=\s*\?').firstMatch(cond);
     if (m != null) {
       final v = row[m.group(1)];
       return v is num && args[0] is num && v <= (args[0] as num);
     }
 
-    // col >= ?
     m = RegExp(r'(\w+)\s*>=\s*\?').firstMatch(cond);
     if (m != null) {
       final v = row[m.group(1)];
       return v is num && args[0] is num && v >= (args[0] as num);
     }
 
-    // col < ?
     m = RegExp(r'(\w+)\s*<\s*\?').firstMatch(cond);
     if (m != null) {
       final v = row[m.group(1)];
       return v is num && args[0] is num && v < (args[0] as num);
     }
 
-    // col LIKE ?
     m = RegExp(r'(\w+)\s+LIKE\s+\?', caseSensitive: false).firstMatch(cond);
     if (m != null) {
       final v = row[m.group(1)]?.toString() ?? '';
@@ -291,7 +345,7 @@ class MemoryDatabase implements Database {
       return RegExp(pattern, caseSensitive: false).hasMatch(v);
     }
 
-    return true; // unknown condition, pass through
+    return true;
   }
 
   List<Map<String, dynamic>> _applyOrderBy(

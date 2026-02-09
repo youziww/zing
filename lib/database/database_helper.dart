@@ -20,9 +20,14 @@ class DatabaseHelper {
 
   Future<Database> _initDB(String filename) async {
     if (kIsWeb) {
-      // Use in-memory database on web (no WASM needed)
       final db = MemoryDatabase();
-      await _createDB(db, 1);
+      // Try restoring persisted data from localStorage
+      if (!db.restoreFromStorage()) {
+        // Fresh start - create tables (PreloadService will fill data)
+        db.beginBatch();
+        await _createDB(db, 1);
+        db.endBatch();
+      }
       return db;
     }
     final dbPath = await getDatabasesPath();

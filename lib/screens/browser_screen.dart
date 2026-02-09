@@ -17,12 +17,13 @@ class _BrowserScreenState extends ConsumerState<BrowserScreen> {
   final _searchController = TextEditingController();
   final _noteDao = NoteDao();
   List<Note> _notes = [];
-  bool _loading = true;
+  late bool _loading = widget.deckId != null;
 
   @override
   void initState() {
     super.initState();
-    _loadNotes();
+    // Only auto-load when browsing a specific deck
+    if (widget.deckId != null) _loadNotes();
   }
 
   @override
@@ -55,11 +56,26 @@ class _BrowserScreenState extends ConsumerState<BrowserScreen> {
     if (mounted) setState(() => _loading = false);
   }
 
+  void _clearList() {
+    _searchController.clear();
+    setState(() {
+      _notes = [];
+      _loading = false;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return CupertinoPageScaffold(
-      navigationBar: const CupertinoNavigationBar(
-        middle: Text('Browse'),
+      navigationBar: CupertinoNavigationBar(
+        middle: const Text('Browse'),
+        trailing: _notes.isNotEmpty
+            ? CupertinoButton(
+                padding: EdgeInsets.zero,
+                onPressed: _clearList,
+                child: const Text('Clear', style: TextStyle(fontSize: 15)),
+              )
+            : null,
       ),
       child: SafeArea(
         child: Column(
@@ -72,6 +88,20 @@ class _BrowserScreenState extends ConsumerState<BrowserScreen> {
                 placeholder: 'Search cards...',
               ),
             ),
+            if (!_loading && _notes.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(left: 16, bottom: 4),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'Showing ${_notes.length} most recent',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: CupertinoColors.systemGrey,
+                    ),
+                  ),
+                ),
+              ),
             Expanded(
               child: _loading
                   ? const Center(child: CupertinoActivityIndicator())
@@ -124,7 +154,7 @@ class _BrowserScreenState extends ConsumerState<BrowserScreen> {
     if (confirmed == true) {
       final creator = ref.read(noteCreatorProvider);
       await creator.deleteNote(note.id);
-      _loadNotes();
+      setState(() => _notes.removeWhere((n) => n.id == note.id));
       ref.invalidate(deckListProvider);
     }
   }
@@ -136,21 +166,68 @@ class _NoteTile extends StatelessWidget {
 
   const _NoteTile({required this.note, required this.onDelete});
 
+  /// Strip HTML tags, sound refs, ruby syntax, entities, control chars.
+  static String _cleanText(String text) {
+    var s = text
+        .replaceAll(RegExp(r'\[sound:[^\]]*\]'), '') // remove [sound:...]
+        .replaceAll(RegExp(r'<[^>]*>'), '')          // strip HTML tags
+        .replaceAll(RegExp(r'\w+\[([^\]]+)\]'), r'\1') // ruby 丸[まる] → まる
+        .replaceAll('&nbsp;', ' ')
+        .replaceAll('&amp;', '&')
+        .replaceAll('&lt;', '<')
+        .replaceAll('&gt;', '>')
+        .replaceAll('&quot;', '"')
+        .replaceAll('&#39;', "'")
+        .replaceAll(RegExp(r'[\x00-\x1f]'), '')      // remove control chars
+        .replaceAll(RegExp(r'\s+'), ' ')              // collapse whitespace
+        .trim();
+    return s.isEmpty ? '(empty)' : s;
+  }
+
+  /// Pick the best display text for front/back of a note.
+  static String _frontText(Note note) {
+    // sortField is always clean (the word itself)
+    if (note.sortField.isNotEmpty) return _cleanText(note.sortField);
+    return _cleanText(note.fields.isNotEmpty ? note.fields[0] : '');
+  }
+
+  static final _uuidPattern = RegExp(
+      r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$',
+      caseSensitive: false);
+
+  static String _backText(Note note) {
+    final front = _cleanText(note.sortField);
+    // Find the first meaningful field: ≥3 chars, not UUID, not same as front
+    for (final f in note.fields) {
+      final cleaned = _cleanText(f);
+      if (cleaned == '(empty)' || cleaned == front) continue;
+      if (_uuidPattern.hasMatch(cleaned)) continue;
+      if (cleaned.length >= 3) return cleaned;
+    }
+    // Fallback: first non-empty, non-front field
+    for (final f in note.fields) {
+      final cleaned = _cleanText(f);
+      if (cleaned != '(empty)' && cleaned != front && !_uuidPattern.hasMatch(cleaned)) {
+        return cleaned;
+      }
+    }
+    return '';
+  }
+
   @override
   Widget build(BuildContext context) {
-    final preview = note.fields.isNotEmpty ? note.fields[0] : '(empty)';
-    // Strip HTML tags for display
-    final cleanPreview = preview.replaceAll(RegExp(r'<[^>]*>'), '');
+    final front = _frontText(note);
+    final back = _backText(note);
 
     return CupertinoListTile(
       title: Text(
-        cleanPreview,
+        front,
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
       ),
-      subtitle: note.fields.length > 1
+      subtitle: back.isNotEmpty && back != '(empty)'
           ? Text(
-              note.fields[1].replaceAll(RegExp(r'<[^>]*>'), ''),
+              back,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(color: CupertinoColors.systemGrey),

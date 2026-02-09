@@ -44,34 +44,41 @@ class NoteDao {
     return await db.delete('notes', where: 'id = ?', whereArgs: [id]);
   }
 
-  Future<List<Note>> getAll() async {
+  Future<List<Note>> getAll({int limit = 10}) async {
     final db = await _db;
-    final maps = await db.query('notes', orderBy: 'sfld ASC');
+    final maps = await db.query('notes', orderBy: 'mod DESC', limit: limit);
     return maps.map((m) => Note.fromMap(m)).toList();
   }
 
-  /// Search notes by sort field.
-  Future<List<Note>> search(String query) async {
+  /// Search notes by sort field, return last 10 results.
+  Future<List<Note>> search(String query, {int limit = 10}) async {
     final db = await _db;
     final maps = await db.query(
       'notes',
       where: 'sfld LIKE ? OR flds LIKE ?',
       whereArgs: ['%$query%', '%$query%'],
-      orderBy: 'sfld ASC',
+      orderBy: 'mod DESC',
+      limit: limit,
     );
     return maps.map((m) => Note.fromMap(m)).toList();
   }
 
-  /// Get notes that belong to cards in a specific deck.
-  Future<List<Note>> getByDeckId(int deckId) async {
+  /// Get notes that belong to cards in a specific deck, return last 10.
+  Future<List<Note>> getByDeckId(int deckId, {int limit = 10}) async {
     final db = await _db;
     final maps = await db.rawQuery(
       'SELECT DISTINCT n.* FROM notes n '
       'INNER JOIN cards c ON c.nid = n.id '
-      'WHERE c.did = ? ORDER BY n.sfld ASC',
-      [deckId],
+      'WHERE c.did = ? ORDER BY n.mod DESC LIMIT ?',
+      [deckId, limit],
     );
     return maps.map((m) => Note.fromMap(m)).toList();
+  }
+
+  /// Delete all notes.
+  Future<int> deleteAll() async {
+    final db = await _db;
+    return await db.delete('notes');
   }
 
   Future<int> getCount() async {

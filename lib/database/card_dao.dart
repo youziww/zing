@@ -53,6 +53,12 @@ class CardDao {
     return await db.delete('cards', where: 'did = ?', whereArgs: [deckId]);
   }
 
+  /// Delete all cards.
+  Future<int> deleteAll() async {
+    final db = await _db;
+    return await db.delete('cards');
+  }
+
   /// Get new cards for a deck (queue=0), limited by count, ordered by due.
   Future<List<ReviewCard>> getNewCards(int deckId, int limit) async {
     final db = await _db;

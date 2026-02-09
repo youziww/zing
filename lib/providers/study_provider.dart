@@ -168,9 +168,13 @@ class CardContent {
   /// Check if this note type has many fields (complex template).
   bool get _isComplex => noteType.fields.length > 10;
 
+  /// Check if this is a biaori-style vocab note (has 日语/中文 fields).
+  bool get _isBiaori => _fieldMap.containsKey('日语') && _fieldMap.containsKey('中文');
+
   /// Render front HTML.
   String get frontHtml {
     if (_isComplex) return _wrapWithCss(_simpleFront());
+    if (_isBiaori) return _wrapWithCss(_biaoriFront());
     if (card.ord < noteType.templates.length) {
       var html = noteType.templates[card.ord].frontHtml;
       html = _render(html);
@@ -185,6 +189,7 @@ class CardContent {
   /// Render back HTML.
   String get backHtml {
     if (_isComplex) return _wrapWithCss(_simpleBack());
+    if (_isBiaori) return _wrapWithCss(_biaoriBack());
     if (card.ord < noteType.templates.length) {
       var html = noteType.templates[card.ord].backHtml;
       html = html.replaceAll('{{FrontSide}}', _renderRaw(noteType.templates[card.ord].frontHtml));
@@ -199,6 +204,7 @@ class CardContent {
 
   String get frontHtmlRaw {
     if (_isComplex) return _simpleFront();
+    if (_isBiaori) return _biaoriFront();
     if (card.ord < noteType.templates.length) {
       return _renderRaw(noteType.templates[card.ord].frontHtml);
     }
@@ -211,11 +217,15 @@ class CardContent {
     // Try common vocabulary field names
     final kanji = m['VocabKanji'] ?? m['Front'] ?? m['Word'] ?? m['Expression']
         ?? (note.fields.isNotEmpty ? note.fields[0] : '');
-    return '''
-<div style="text-align:center; padding:20px;">
-  <h1 style="font-size:48px; margin:20px 0; font-weight:normal;" lang="ja">$kanji</h1>
-</div>
-''';
+    final pitch = m['VocabPitch'] ?? '';
+    final buf = StringBuffer();
+    buf.write('<div style="text-align:center; padding:20px;">');
+    buf.write('<h1 style="font-size:48px; margin:20px 0; font-weight:normal;" lang="ja">$kanji</h1>');
+    if (pitch.isNotEmpty) {
+      buf.write('<div style="font-size:18px; color:#999;">$pitch</div>');
+    }
+    buf.write('</div>');
+    return buf.toString();
   }
 
   /// Simplified back for complex note types.
@@ -229,14 +239,17 @@ class CardContent {
         ?? (note.fields.length > 1 ? note.fields[1] : ''));
     final plus = _clean(m['VocabPlus'] ?? '');
 
-    // Find first non-empty example sentence
-    String sentKanji = '', sentDef = '';
-    for (int i = 1; i <= 4; i++) {
+    // Collect up to 2 non-empty example sentences with furigana ruby
+    final sentences = <({String sentence, String def})>[];
+    for (int i = 1; i <= 4 && sentences.length < 2; i++) {
+      final sf = m['SentFurigana$i'] ?? '';
       final sk = m['SentKanji$i'] ?? '';
-      if (sk.isNotEmpty) {
-        sentKanji = _clean(sk);
-        sentDef = _clean(m['SentDefSC$i'] ?? m['SentDefTC$i'] ?? '');
-        break;
+      final raw = sf.isNotEmpty ? sf : sk;
+      if (raw.isNotEmpty) {
+        sentences.add((
+          sentence: _furiganaToRuby(raw),
+          def: _clean(m['SentDefSC$i'] ?? m['SentDefTC$i'] ?? ''),
+        ));
       }
     }
 
@@ -253,15 +266,79 @@ class CardContent {
     if (plus.isNotEmpty) {
       buf.write('<div style="font-size:14px; color:#888; margin:8px 0;">$plus</div>');
     }
-    if (sentKanji.isNotEmpty) {
+    if (sentences.isNotEmpty) {
       buf.write('<hr style="border:none; border-top:1px solid #ddd; margin:16px 0;">');
-      buf.write('<div style="font-size:18px; text-align:left;" lang="ja">$sentKanji</div>');
-      if (sentDef.isNotEmpty) {
-        buf.write('<div style="font-size:16px; text-align:left; color:#666; margin-top:6px;">$sentDef</div>');
+      for (final s in sentences) {
+        buf.write('<div style="font-size:18px; text-align:left;" lang="ja">${s.sentence}</div>');
+        if (s.def.isNotEmpty) {
+          buf.write('<div style="font-size:16px; text-align:left; color:#666; margin-top:4px;">${s.def}</div>');
+        }
+        if (s != sentences.last) {
+          buf.write('<div style="margin:10px 0;"></div>');
+        }
       }
     }
     buf.write('</div>');
     return buf.toString();
+  }
+
+  /// Biaori front: show word with ruby furigana.
+  String _biaoriFront() {
+    final m = _fieldMap;
+    final raw = m['日语'] ?? '';
+    final ruby = _biaoriToRuby(raw);
+    return '''
+<div style="text-align:center; padding:20px;">
+  <h1 style="font-size:48px; margin:20px 0; font-weight:normal;" lang="ja">$ruby</h1>
+</div>
+''';
+  }
+
+  /// Biaori back: word + meaning + POS + lesson.
+  String _biaoriBack() {
+    final m = _fieldMap;
+    final raw = m['日语'] ?? '';
+    final ruby = _biaoriToRuby(raw);
+    final meaning = m['中文'] ?? '';
+    final pos = m['词性'] ?? '';
+    final lesson = m['课号'] ?? '';
+
+    final buf = StringBuffer();
+    buf.write('<div style="text-align:center; padding:16px; line-height:1.8;">');
+    buf.write('<h1 style="font-size:42px; margin:10px 0; font-weight:normal;" lang="ja">$ruby</h1>');
+    buf.write('<div style="font-size:20px; margin:16px 0; color:#333;">$meaning</div>');
+    if (pos.isNotEmpty || lesson.isNotEmpty) {
+      buf.write('<div style="font-size:14px; color:#999;">');
+      if (pos.isNotEmpty) buf.write(pos);
+      if (pos.isNotEmpty && lesson.isNotEmpty) buf.write('　');
+      if (lesson.isNotEmpty) buf.write(lesson);
+      buf.write('</div>');
+    }
+    buf.write('</div>');
+    return buf.toString();
+  }
+
+  /// Convert Anki furigana format `漢字[かんじ]` to `<ruby>漢字<rt>かんじ</rt></ruby>`.
+  /// Handles sequences like `答[こた]えに 丸[まる]をつける`.
+  String _furiganaToRuby(String text) {
+    // Remove [sound:...] first
+    text = text.replaceAll(RegExp(r'\[sound:[^\]]*\]'), '');
+    // Convert kanji[reading] → <ruby>kanji<rt>reading</rt></ruby>
+    text = text.replaceAllMapped(
+      RegExp(r'(\S+?)\[([^\]]+)\]'),
+      (m) => '<ruby>${m.group(1)}<rt>${m.group(2)}</rt></ruby>',
+    );
+    return text.trim();
+  }
+
+  /// Convert biaori format `reading(kanji)` to ruby HTML.
+  /// e.g. `ちゅうごくじん(中国人)` → `<ruby>中国人<rt>ちゅうごくじん</rt></ruby>`
+  /// Only matches when reading is hiragana/katakana and kanji is inside parens.
+  String _biaoriToRuby(String text) {
+    return text.replaceAllMapped(
+      RegExp(r'([\u3040-\u309F\u30A0-\u30FF\u30FC]+)\(([^)]+)\)'),
+      (m) => '<ruby>${m.group(2)}<rt>${m.group(1)}</rt></ruby>',
+    );
   }
 
   /// Clean field value: remove [sound:...], strip readings for display.
@@ -273,6 +350,8 @@ class CardContent {
   /// Full template rendering for simple note types.
   String _render(String html) {
     html = _renderRaw(html);
+    // Post-process: convert reading(kanji) patterns to ruby
+    html = _biaoriToRuby(html);
     return html;
   }
 
@@ -353,6 +432,8 @@ class CardContent {
 <style>
 body { font-family: -apple-system, 'Hiragino Sans', 'PingFang SC', sans-serif; margin: 0; padding: 8px; }
 .cloze { font-weight: bold; color: #00f; }
+ruby { ruby-position: over; }
+rt { font-size: 0.6em; color: #888; }
 </style>
 </head>
 <body>

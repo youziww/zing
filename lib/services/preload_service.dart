@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/services.dart';
 import '../database/database_helper.dart';
+import '../database/memory_database.dart';
 
 /// Preloads bundled deck data into the database on web.
 class PreloadService {
@@ -10,9 +11,14 @@ class PreloadService {
 
     final db = await DatabaseHelper.instance.database;
 
-    // Check if data already loaded (more than default deck)
+    // Check if data already loaded
     final existing = await db.query('decks');
+    final existingCards = await db.query('cards');
     if (existing.length > 1) return;
+    if (existingCards.isNotEmpty) return;
+
+    // Batch mode: suppress per-insert persistence during bulk load
+    if (db is MemoryDatabase) db.beginBatch();
 
     // Load all bundled deck data files
     const assets = ['assets/n2_data.json', 'assets/biaori_data.json'];
@@ -22,9 +28,12 @@ class PreloadService {
         final data = json.decode(jsonStr) as Map<String, dynamic>;
         await _loadData(db, data);
       } catch (_) {
-        // Silently fail - app works without preloaded data
+        // App works without preloaded data
       }
     }
+
+    // Persist once after all data is loaded
+    if (db is MemoryDatabase) db.endBatch();
   }
 
   static Future<void> _loadData(dynamic db, Map<String, dynamic> data) async {

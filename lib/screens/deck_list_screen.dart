@@ -20,14 +20,15 @@ class DeckListScreen extends ConsumerWidget {
     final todayStats = ref.watch(todayStatsProvider);
 
     return CupertinoPageScaffold(
+      backgroundColor: CupertinoColors.systemGroupedBackground,
       navigationBar: CupertinoNavigationBar(
-        middle: const Text('Zing'),
+        middle: const Text('Zing', style: TextStyle(fontWeight: FontWeight.w700)),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             CupertinoButton(
               padding: EdgeInsets.zero,
-              child: const Icon(CupertinoIcons.chart_bar),
+              child: const Icon(CupertinoIcons.chart_bar, size: 22),
               onPressed: () => Navigator.push(
                 context,
                 CupertinoPageRoute(builder: (_) => const StatsScreen()),
@@ -35,7 +36,7 @@ class DeckListScreen extends ConsumerWidget {
             ),
             CupertinoButton(
               padding: EdgeInsets.zero,
-              child: const Icon(CupertinoIcons.search),
+              child: const Icon(CupertinoIcons.search, size: 22),
               onPressed: () => Navigator.push(
                 context,
                 CupertinoPageRoute(builder: (_) => const BrowserScreen()),
@@ -47,28 +48,40 @@ class DeckListScreen extends ConsumerWidget {
       child: SafeArea(
         child: Column(
           children: [
-            // Today's stats bar
+            // Today's stats card
             todayStats.when(
-              data: (stats) => Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                color: CupertinoColors.systemGroupedBackground,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: [
-                    _StatChip(
-                      label: 'Studied',
-                      value: '${stats.reviewCount}',
-                      color: CupertinoColors.systemBlue,
-                    ),
-                    _StatChip(
-                      label: 'Accuracy',
-                      value: stats.reviewCount > 0
-                          ? '${(stats.accuracy * 100).toStringAsFixed(0)}%'
-                          : '-',
-                      color: CupertinoColors.systemGreen,
-                    ),
-                  ],
+              data: (stats) => Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                  decoration: BoxDecoration(
+                    color: CupertinoColors.white,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      _StatChip(
+                        label: 'Today',
+                        value: '${stats.reviewCount}',
+                        icon: CupertinoIcons.bolt_fill,
+                        color: CupertinoColors.systemBlue,
+                      ),
+                      Container(
+                        width: 1,
+                        height: 32,
+                        color: CupertinoColors.separator,
+                      ),
+                      _StatChip(
+                        label: 'Accuracy',
+                        value: stats.reviewCount > 0
+                            ? '${(stats.accuracy * 100).toStringAsFixed(0)}%'
+                            : '--',
+                        icon: CupertinoIcons.checkmark_seal_fill,
+                        color: CupertinoColors.systemGreen,
+                      ),
+                    ],
+                  ),
                 ),
               ),
               loading: () => const SizedBox.shrink(),
@@ -78,21 +91,33 @@ class DeckListScreen extends ConsumerWidget {
             Expanded(
               child: decksAsync.when(
                 data: (decks) => decks.isEmpty
-                    ? const Center(
-                        child: Text(
-                          'No decks yet.\nTap + to create one.',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: CupertinoColors.systemGrey,
-                            fontSize: 16,
-                          ),
+                    ? Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(CupertinoIcons.rectangle_stack,
+                                size: 48, color: CupertinoColors.systemGrey3),
+                            const SizedBox(height: 12),
+                            const Text(
+                              'No decks yet',
+                              style: TextStyle(
+                                color: CupertinoColors.systemGrey,
+                                fontSize: 17,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            const Text(
+                              'Create a deck or import from .apkg',
+                              style: TextStyle(
+                                color: CupertinoColors.systemGrey2,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ],
                         ),
                       )
-                    : ListView.builder(
-                        itemCount: decks.length,
-                        itemBuilder: (context, index) =>
-                            _DeckTile(deck: decks[index]),
-                      ),
+                    : _buildDeckList(decks),
                 loading: () =>
                     const Center(child: CupertinoActivityIndicator()),
                 error: (e, _) => Center(child: Text('Error: $e')),
@@ -100,13 +125,11 @@ class DeckListScreen extends ConsumerWidget {
             ),
             // Bottom action bar
             Container(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
               decoration: const BoxDecoration(
+                color: CupertinoColors.white,
                 border: Border(
-                  top: BorderSide(
-                    color: CupertinoColors.separator,
-                    width: 0.5,
-                  ),
+                  top: BorderSide(color: CupertinoColors.separator, width: 0.5),
                 ),
               ),
               child: Row(
@@ -114,33 +137,21 @@ class DeckListScreen extends ConsumerWidget {
                   Expanded(
                     child: CupertinoButton.filled(
                       padding: const EdgeInsets.symmetric(vertical: 12),
-                      child: const Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(CupertinoIcons.add, size: 18),
-                          SizedBox(width: 6),
-                          Text('Add Deck'),
-                        ],
-                      ),
+                      borderRadius: BorderRadius.circular(10),
+                      child: const Text('Add Deck', style: TextStyle(fontWeight: FontWeight.w600)),
                       onPressed: () => _showAddDeckDialog(context, ref),
                     ),
                   ),
                   const SizedBox(width: 12),
-                  CupertinoButton(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 12),
-                    color: CupertinoColors.systemOrange,
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(CupertinoIcons.arrow_down_doc,
-                            size: 18, color: CupertinoColors.white),
-                        SizedBox(width: 6),
-                        Text('Import',
-                            style: TextStyle(color: CupertinoColors.white)),
-                      ],
+                  Expanded(
+                    child: CupertinoButton(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      color: CupertinoColors.systemOrange,
+                      borderRadius: BorderRadius.circular(10),
+                      child: const Text('Import',
+                          style: TextStyle(color: CupertinoColors.white, fontWeight: FontWeight.w600)),
+                      onPressed: () => _importApkg(context, ref),
                     ),
-                    onPressed: () => _importApkg(context, ref),
                   ),
                 ],
               ),
@@ -148,6 +159,45 @@ class DeckListScreen extends ConsumerWidget {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildDeckList(List<Deck> decks) {
+    // Group decks: top-level parents and their children
+    final topLevel = <Deck>[];
+    final children = <String, List<Deck>>{};
+    final topLevelNames = <String>{};
+
+    for (final deck in decks) {
+      if (deck.depth == 0) {
+        topLevel.add(deck);
+        topLevelNames.add(deck.name);
+      } else {
+        final rootName = deck.name.split('::').first;
+        children.putIfAbsent(rootName, () => []).add(deck);
+      }
+    }
+
+    // Create virtual parents for orphaned child groups
+    for (final rootName in children.keys) {
+      if (!topLevelNames.contains(rootName)) {
+        // Find the shallowest child to use as the virtual parent
+        final orphans = children[rootName]!;
+        orphans.sort((a, b) => a.depth.compareTo(b.depth));
+        final virtualParent = orphans.removeAt(0);
+        topLevel.add(virtualParent);
+      }
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.only(top: 8, bottom: 8),
+      itemCount: topLevel.length,
+      itemBuilder: (context, index) {
+        final parent = topLevel[index];
+        final rootName = parent.name.split('::').first;
+        final subs = children[rootName] ?? [];
+        return _DeckSection(parent: parent, children: subs);
+      },
     );
   }
 
@@ -260,68 +310,156 @@ class DeckListScreen extends ConsumerWidget {
   }
 }
 
-class _DeckTile extends ConsumerWidget {
-  final Deck deck;
+class _DeckSection extends ConsumerStatefulWidget {
+  final Deck parent;
+  final List<Deck> children;
 
-  const _DeckTile({required this.deck});
+  const _DeckSection({required this.parent, required this.children});
+
+  @override
+  ConsumerState<_DeckSection> createState() => _DeckSectionState();
+}
+
+class _DeckSectionState extends ConsumerState<_DeckSection> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final hasChildren = widget.children.isNotEmpty;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      child: Container(
+        decoration: BoxDecoration(
+          color: CupertinoColors.white,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _DeckRow(
+              deck: widget.parent,
+              isParent: hasChildren,
+              isFirst: true,
+              isLast: !hasChildren || !_expanded,
+              expanded: _expanded,
+              onToggleExpand: hasChildren
+                  ? () => setState(() => _expanded = !_expanded)
+                  : null,
+            ),
+            if (_expanded)
+              for (int i = 0; i < widget.children.length; i++)
+                _DeckRow(
+                  deck: widget.children[i],
+                  isParent: false,
+                  isFirst: false,
+                  isLast: i == widget.children.length - 1,
+                ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DeckRow extends ConsumerWidget {
+  final Deck deck;
+  final bool isParent;
+  final bool isFirst;
+  final bool isLast;
+  final bool expanded;
+  final VoidCallback? onToggleExpand;
+
+  const _DeckRow({
+    required this.deck,
+    required this.isParent,
+    required this.isFirst,
+    required this.isLast,
+    this.expanded = false,
+    this.onToggleExpand,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return GestureDetector(
-      onLongPress: () => _showContextMenu(context, ref),
-      child: CupertinoListTile(
-        padding: EdgeInsets.only(
-          left: 16.0 + deck.depth * 20.0,
-          right: 16.0,
-          top: 12,
-          bottom: 12,
-        ),
-        title: Text(
-          deck.shortName,
-          style: const TextStyle(fontSize: 17),
-        ),
-        subtitle: Row(
-          children: [
-            _CountBadge(
-              count: deck.newCount,
-              color: CupertinoColors.systemBlue,
-            ),
-            const SizedBox(width: 8),
-            _CountBadge(
-              count: deck.learnCount,
-              color: CupertinoColors.systemRed,
-            ),
-            const SizedBox(width: 8),
-            _CountBadge(
-              count: deck.reviewCount,
-              color: CupertinoColors.systemGreen,
-            ),
-          ],
-        ),
-        trailing: CupertinoButton(
-          padding: EdgeInsets.zero,
-          child: const Icon(CupertinoIcons.add_circled,
-              color: CupertinoColors.systemBlue),
-          onPressed: () {
-            Navigator.push(
-              context,
-              CupertinoPageRoute(
-                builder: (_) => CardEditorScreen(deckId: deck.id),
-              ),
-            ).then((_) => ref.read(deckListProvider.notifier).refresh());
+    final hasDue = deck.totalDueCount > 0;
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (!isFirst)
+          Padding(
+            padding: EdgeInsets.only(left: isParent ? 16 : 44),
+            child: Container(height: 0.5, color: CupertinoColors.separator),
+          ),
+        GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () {
+            if (onToggleExpand != null) {
+              onToggleExpand!();
+            } else if (hasDue) {
+              Navigator.push(
+                context,
+                CupertinoPageRoute(
+                  builder: (_) => StudyScreen(deckId: deck.id, deckName: deck.name),
+                ),
+              ).then((_) => ref.read(deckListProvider.notifier).refresh());
+            }
           },
+          onLongPress: () => _showContextMenu(context, ref),
+          child: Padding(
+            padding: EdgeInsets.only(
+              left: isParent ? 16 : 44,
+              right: 16,
+              top: isParent ? 14 : 12,
+              bottom: isParent ? 14 : 12,
+            ),
+            child: Row(
+              children: [
+                if (onToggleExpand != null)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: Icon(
+                      expanded ? CupertinoIcons.chevron_down : CupertinoIcons.chevron_right,
+                      size: 14,
+                      color: CupertinoColors.systemGrey,
+                    ),
+                  ),
+                Expanded(
+                  child: Text(
+                    deck.shortName,
+                    style: TextStyle(
+                      fontSize: isParent ? 17 : 16,
+                      fontWeight: isParent ? FontWeight.w600 : FontWeight.normal,
+                      color: CupertinoColors.label,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                _CountBadge(count: deck.newCount, color: CupertinoColors.systemBlue),
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 6),
+                  child: Text('·', style: TextStyle(color: CupertinoColors.systemGrey3, fontSize: 14)),
+                ),
+                _CountBadge(count: deck.learnCount, color: CupertinoColors.systemRed),
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 6),
+                  child: Text('·', style: TextStyle(color: CupertinoColors.systemGrey3, fontSize: 14)),
+                ),
+                _CountBadge(count: deck.reviewCount, color: CupertinoColors.systemGreen),
+                if (hasDue && onToggleExpand == null)
+                  const Padding(
+                    padding: EdgeInsets.only(left: 8),
+                    child: Icon(CupertinoIcons.chevron_right,
+                        size: 14, color: CupertinoColors.systemGrey3),
+                  ),
+              ],
+            ),
+          ),
         ),
-        onTap: () {
-          if (deck.totalDueCount > 0) {
-            Navigator.push(
-              context,
-              CupertinoPageRoute(
-                builder: (_) => StudyScreen(deckId: deck.id, deckName: deck.name),
-              ),
-            ).then((_) => ref.read(deckListProvider.notifier).refresh());
-          }
-        },
-      ),
+      ],
     );
   }
 
@@ -476,32 +614,42 @@ class _CountBadge extends StatelessWidget {
 class _StatChip extends StatelessWidget {
   final String label;
   final String value;
+  final IconData icon;
   final Color color;
 
   const _StatChip({
     required this.label,
     required this.value,
+    required this.icon,
     required this.color,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Column(
+    return Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
-        Text(
-          value,
-          style: TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-            color: color,
-          ),
-        ),
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 12,
-            color: CupertinoColors.systemGrey,
-          ),
+        Icon(icon, size: 18, color: color),
+        const SizedBox(width: 8),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              value,
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: color,
+              ),
+            ),
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 11,
+                color: CupertinoColors.systemGrey,
+              ),
+            ),
+          ],
         ),
       ],
     );

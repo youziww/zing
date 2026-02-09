@@ -50,14 +50,18 @@ class _StudyScreenState extends ConsumerState<StudyScreen> {
 
     return CupertinoPageScaffold(
       navigationBar: CupertinoNavigationBar(
-        middle: Text(widget.deckName),
+        middle: Text(
+          widget.deckName.contains('::')
+              ? widget.deckName.split('::').last
+              : widget.deckName,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
       ),
       child: SafeArea(
         child: sessionAsync.when(
           data: (session) {
-            if (session.isFinished) {
-              return _buildCongratsView(session);
-            }
+            if (session.isFinished) return _buildCongratsView(session);
             return _buildStudyView(session);
           },
           loading: () => const Center(child: CupertinoActivityIndicator()),
@@ -87,10 +91,7 @@ class _StudyScreenState extends ConsumerState<StudyScreen> {
             const SizedBox(height: 8),
             const Text(
               'You have finished all cards for now.',
-              style: TextStyle(
-                fontSize: 16,
-                color: CupertinoColors.systemGrey,
-              ),
+              style: TextStyle(fontSize: 16, color: CupertinoColors.systemGrey),
             ),
             const SizedBox(height: 32),
             CupertinoButton(
@@ -104,16 +105,13 @@ class _StudyScreenState extends ConsumerState<StudyScreen> {
   }
 
   Widget _buildStudyView(StudySessionState session) {
-    // Reload content when card changes
     if (_cardContent?.card.id != session.currentCard?.id && !_loadingContent) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _loadContent());
     }
 
     return Column(
       children: [
-        // Progress bar
         _buildProgressBar(session),
-        // Card content
         Expanded(
           child: GestureDetector(
             onTap: () {
@@ -126,7 +124,6 @@ class _StudyScreenState extends ConsumerState<StudyScreen> {
             child: _buildCardContent(session),
           ),
         ),
-        // Answer buttons
         if (session.isShowingAnswer) _buildAnswerButtons(session),
         if (!session.isShowingAnswer) _buildShowAnswerButton(),
       ],
@@ -135,24 +132,20 @@ class _StudyScreenState extends ConsumerState<StudyScreen> {
 
   Widget _buildProgressBar(StudySessionState session) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      decoration: const BoxDecoration(
+        border: Border(
+          bottom: BorderSide(color: CupertinoColors.separator, width: 0.5),
+        ),
+      ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          _CountLabel(
-            count: session.counts['new'] ?? 0,
-            color: CupertinoColors.systemBlue,
-          ),
-          const SizedBox(width: 16),
-          _CountLabel(
-            count: session.counts['learn'] ?? 0,
-            color: CupertinoColors.systemRed,
-          ),
-          const SizedBox(width: 16),
-          _CountLabel(
-            count: session.counts['review'] ?? 0,
-            color: CupertinoColors.systemGreen,
-          ),
+          _CountLabel(count: session.counts['new'] ?? 0, color: CupertinoColors.systemBlue),
+          const SizedBox(width: 24),
+          _CountLabel(count: session.counts['learn'] ?? 0, color: CupertinoColors.systemRed),
+          const SizedBox(width: 24),
+          _CountLabel(count: session.counts['review'] ?? 0, color: CupertinoColors.systemGreen),
         ],
       ),
     );
@@ -169,11 +162,13 @@ class _StudyScreenState extends ConsumerState<StudyScreen> {
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      child: SingleChildScrollView(
-        child: HtmlWidget(
-          html,
-          textStyle: const TextStyle(fontSize: 18),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+      child: Center(
+        child: SingleChildScrollView(
+          child: HtmlWidget(
+            html,
+            textStyle: const TextStyle(fontSize: 18),
+          ),
         ),
       ),
     );
@@ -181,15 +176,14 @@ class _StudyScreenState extends ConsumerState<StudyScreen> {
 
   Widget _buildShowAnswerButton() {
     return Padding(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
       child: SizedBox(
         width: double.infinity,
         child: CupertinoButton.filled(
-          child: const Text('Show Answer'),
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          child: const Text('Show Answer', style: TextStyle(fontSize: 17)),
           onPressed: () {
-            ref
-                .read(studySessionProvider(widget.deckId).notifier)
-                .showAnswer();
+            ref.read(studySessionProvider(widget.deckId).notifier).showAnswer();
           },
         ),
       ),
@@ -200,32 +194,29 @@ class _StudyScreenState extends ConsumerState<StudyScreen> {
     final times = session.nextReviewTimes;
 
     return Container(
-      padding: const EdgeInsets.fromLTRB(8, 8, 8, 16),
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 16),
+      decoration: const BoxDecoration(
+        border: Border(
+          top: BorderSide(color: CupertinoColors.separator, width: 0.5),
+        ),
+      ),
       child: Row(
         children: [
           _AnswerButton(
-            label: 'Again',
-            subtitle: times[Ease.again] ?? '',
-            color: CupertinoColors.systemRed,
-            onPressed: () => _answer(Ease.again),
+            label: 'Again', subtitle: times[Ease.again] ?? '',
+            color: CupertinoColors.systemRed, onPressed: () => _answer(Ease.again),
           ),
           _AnswerButton(
-            label: 'Hard',
-            subtitle: times[Ease.hard] ?? '',
-            color: CupertinoColors.systemOrange,
-            onPressed: () => _answer(Ease.hard),
+            label: 'Hard', subtitle: times[Ease.hard] ?? '',
+            color: CupertinoColors.systemOrange, onPressed: () => _answer(Ease.hard),
           ),
           _AnswerButton(
-            label: 'Good',
-            subtitle: times[Ease.good] ?? '',
-            color: CupertinoColors.systemGreen,
-            onPressed: () => _answer(Ease.good),
+            label: 'Good', subtitle: times[Ease.good] ?? '',
+            color: CupertinoColors.systemGreen, onPressed: () => _answer(Ease.good),
           ),
           _AnswerButton(
-            label: 'Easy',
-            subtitle: times[Ease.easy] ?? '',
-            color: CupertinoColors.systemBlue,
-            onPressed: () => _answer(Ease.easy),
+            label: 'Easy', subtitle: times[Ease.easy] ?? '',
+            color: CupertinoColors.systemBlue, onPressed: () => _answer(Ease.easy),
           ),
         ],
       ),
@@ -233,9 +224,7 @@ class _StudyScreenState extends ConsumerState<StudyScreen> {
   }
 
   Future<void> _answer(int ease) async {
-    await ref
-        .read(studySessionProvider(widget.deckId).notifier)
-        .answerCard(ease);
+    await ref.read(studySessionProvider(widget.deckId).notifier).answerCard(ease);
     _loadContent();
   }
 }
@@ -250,11 +239,7 @@ class _CountLabel extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(
       '$count',
-      style: TextStyle(
-        fontSize: 18,
-        fontWeight: FontWeight.bold,
-        color: color,
-      ),
+      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: color),
     );
   }
 }
@@ -266,10 +251,8 @@ class _AnswerButton extends StatelessWidget {
   final VoidCallback onPressed;
 
   const _AnswerButton({
-    required this.label,
-    required this.subtitle,
-    required this.color,
-    required this.onPressed,
+    required this.label, required this.subtitle,
+    required this.color, required this.onPressed,
   });
 
   @override
@@ -285,22 +268,9 @@ class _AnswerButton extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(
-                label,
-                style: const TextStyle(
-                  color: CupertinoColors.white,
-                  fontWeight: FontWeight.w600,
-                  fontSize: 14,
-                ),
-              ),
+              Text(label, style: const TextStyle(color: CupertinoColors.white, fontWeight: FontWeight.w600, fontSize: 14)),
               if (subtitle.isNotEmpty)
-                Text(
-                  subtitle,
-                  style: const TextStyle(
-                    color: CupertinoColors.white,
-                    fontSize: 11,
-                  ),
-                ),
+                Text(subtitle, style: const TextStyle(color: CupertinoColors.white, fontSize: 11)),
             ],
           ),
         ),
