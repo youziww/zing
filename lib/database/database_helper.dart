@@ -1,8 +1,10 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import '../models/note_type.dart';
 import '../models/deck.dart';
 import '../models/collection.dart';
+import 'memory_database.dart';
 
 class DatabaseHelper {
   static final DatabaseHelper instance = DatabaseHelper._init();
@@ -17,6 +19,12 @@ class DatabaseHelper {
   }
 
   Future<Database> _initDB(String filename) async {
+    if (kIsWeb) {
+      // Use in-memory database on web (no WASM needed)
+      final db = MemoryDatabase();
+      await _createDB(db, 1);
+      return db;
+    }
     final dbPath = await getDatabasesPath();
     final path = join(dbPath, filename);
     return await openDatabase(
@@ -108,7 +116,7 @@ class DatabaseHelper {
       )
     ''');
 
-    // Create indexes
+    // Create indexes (no-op on memory database)
     await db.execute('CREATE INDEX idx_cards_nid ON cards(nid)');
     await db.execute('CREATE INDEX idx_cards_did ON cards(did)');
     await db.execute('CREATE INDEX idx_cards_queue ON cards(queue)');
