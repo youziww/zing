@@ -14,12 +14,16 @@ class PreloadService {
     final existing = await db.query('decks');
     if (existing.length > 1) return;
 
-    try {
-      final jsonStr = await rootBundle.loadString('assets/n2_data.json');
-      final data = json.decode(jsonStr) as Map<String, dynamic>;
-      await _loadData(db, data);
-    } catch (e) {
-      // Silently fail - app works without preloaded data
+    // Load all bundled deck data files
+    const assets = ['assets/n2_data.json', 'assets/biaori_data.json'];
+    for (final asset in assets) {
+      try {
+        final jsonStr = await rootBundle.loadString(asset);
+        final data = json.decode(jsonStr) as Map<String, dynamic>;
+        await _loadData(db, data);
+      } catch (_) {
+        // Silently fail - app works without preloaded data
+      }
     }
   }
 
