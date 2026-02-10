@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_widget_from_html/flutter_widget_from_html.dart';
 import '../providers/study_provider.dart';
 import '../scheduler/card_state.dart';
+import 'card_editor_screen.dart';
 
 class StudyScreen extends ConsumerStatefulWidget {
   final int deckId;
@@ -57,6 +58,14 @@ class _StudyScreenState extends ConsumerState<StudyScreen> {
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),
+        trailing: sessionAsync.valueOrNull?.isShowingAnswer == true &&
+                _cardContent != null
+            ? CupertinoButton(
+                padding: EdgeInsets.zero,
+                onPressed: _editCurrentCard,
+                child: const Icon(CupertinoIcons.pencil, size: 22),
+              )
+            : null,
       ),
       child: SafeArea(
         child: sessionAsync.when(
@@ -159,15 +168,38 @@ class _StudyScreenState extends ConsumerState<StudyScreen> {
     final html = session.isShowingAnswer
         ? _cardContent!.backHtml
         : _cardContent!.frontHtml;
+    final memo = _cardContent!.note.memo;
 
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
       child: Center(
         child: SingleChildScrollView(
-          child: HtmlWidget(
-            html,
-            textStyle: const TextStyle(fontSize: 18),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              HtmlWidget(
+                html,
+                textStyle: const TextStyle(fontSize: 18),
+              ),
+              if (session.isShowingAnswer) ...[
+                const SizedBox(height: 20),
+                GestureDetector(
+                  onTap: _editCurrentCard,
+                  child: Text(
+                    memo.isNotEmpty ? memo : 'Tap to add notes...',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: memo.isNotEmpty
+                          ? CupertinoColors.systemGrey
+                          : CupertinoColors.systemGrey3,
+                      fontStyle: memo.isEmpty ? FontStyle.italic : FontStyle.normal,
+                    ),
+                  ),
+                ),
+              ],
+            ],
           ),
         ),
       ),
@@ -221,6 +253,21 @@ class _StudyScreenState extends ConsumerState<StudyScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _editCurrentCard() async {
+    if (_cardContent == null) return;
+    await Navigator.push(
+      context,
+      CupertinoPageRoute(
+        builder: (_) => CardEditorScreen(
+          deckId: widget.deckId,
+          editNoteId: _cardContent!.note.id,
+        ),
+      ),
+    );
+    // Reload content after edit
+    _loadContent();
   }
 
   Future<void> _answer(int ease) async {

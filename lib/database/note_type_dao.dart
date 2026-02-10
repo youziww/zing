@@ -36,4 +36,17 @@ class NoteTypeDao {
     final db = await _db;
     return await db.delete('notetypes', where: 'id = ?', whereArgs: [id]);
   }
+
+  /// Get note types actually used by cards in a specific deck.
+  Future<List<NoteType>> getByDeckId(int deckId) async {
+    final db = await _db;
+    final maps = await db.rawQuery(
+      'SELECT DISTINCT nt.* FROM notetypes nt '
+      'INNER JOIN notes n ON n.mid = nt.id '
+      'INNER JOIN cards c ON c.nid = n.id '
+      'WHERE c.did = ? ORDER BY nt.name ASC',
+      [deckId],
+    );
+    return maps.map((m) => NoteType.fromMap(m)).toList();
+  }
 }

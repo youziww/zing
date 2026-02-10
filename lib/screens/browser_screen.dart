@@ -1,8 +1,10 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../database/card_dao.dart';
 import '../database/note_dao.dart';
 import '../models/note.dart';
 import '../providers/deck_provider.dart';
+import 'card_editor_screen.dart';
 
 class BrowserScreen extends ConsumerStatefulWidget {
   final int? deckId;
@@ -16,6 +18,7 @@ class BrowserScreen extends ConsumerStatefulWidget {
 class _BrowserScreenState extends ConsumerState<BrowserScreen> {
   final _searchController = TextEditingController();
   final _noteDao = NoteDao();
+  final _cardDao = CardDao();
   List<Note> _notes = [];
   late bool _loading = widget.deckId != null;
 
@@ -120,6 +123,7 @@ class _BrowserScreenState extends ConsumerState<BrowserScreen> {
                               _NoteTile(
                                 note: _notes[index],
                                 onDelete: () => _deleteNote(_notes[index]),
+                                onTap: () => _editNote(_notes[index]),
                               ),
                         ),
             ),
@@ -127,6 +131,29 @@ class _BrowserScreenState extends ConsumerState<BrowserScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _editNote(Note note) async {
+    int deckId;
+    if (widget.deckId != null) {
+      deckId = widget.deckId!;
+    } else {
+      final cards = await _cardDao.getByNoteId(note.id);
+      if (cards.isEmpty) return;
+      deckId = cards.first.deckId;
+    }
+
+    if (!mounted) return;
+    await Navigator.push(
+      context,
+      CupertinoPageRoute(
+        builder: (_) => CardEditorScreen(
+          deckId: deckId,
+          editNoteId: note.id,
+        ),
+      ),
+    );
+    _loadNotes();
   }
 
   Future<void> _deleteNote(Note note) async {
@@ -163,8 +190,9 @@ class _BrowserScreenState extends ConsumerState<BrowserScreen> {
 class _NoteTile extends StatelessWidget {
   final Note note;
   final VoidCallback onDelete;
+  final VoidCallback onTap;
 
-  const _NoteTile({required this.note, required this.onDelete});
+  const _NoteTile({required this.note, required this.onDelete, required this.onTap});
 
   /// Strip HTML tags, sound refs, ruby syntax, entities, control chars.
   static String _cleanText(String text) {
@@ -220,6 +248,7 @@ class _NoteTile extends StatelessWidget {
     final back = _backText(note);
 
     return CupertinoListTile(
+      onTap: onTap,
       title: Text(
         front,
         maxLines: 1,

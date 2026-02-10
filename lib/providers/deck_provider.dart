@@ -89,6 +89,15 @@ final noteTypeListProvider =
   return await dao.getAll();
 });
 
+/// Note types used in a specific deck. Falls back to all if deck is empty.
+final deckNoteTypesProvider =
+    FutureProvider.family<List<NoteType>, int>((ref, deckId) async {
+  final dao = NoteTypeDao();
+  final types = await dao.getByDeckId(deckId);
+  if (types.isNotEmpty) return types;
+  return await dao.getAll();
+});
+
 /// Provider for creating a new note with cards.
 final noteCreatorProvider = Provider((ref) => NoteCreator());
 
@@ -103,6 +112,7 @@ class NoteCreator {
     required int noteTypeId,
     required List<String> fields,
     String tags = '',
+    String memo = '',
   }) async {
     final noteType = await _noteTypeDao.getById(noteTypeId);
     if (noteType == null) throw StateError('Note type not found');
@@ -121,6 +131,7 @@ class NoteCreator {
       tags: tags,
       fields: fields,
       checksum: checksum,
+      memo: memo,
     );
     await _noteDao.insert(note);
 
@@ -178,6 +189,7 @@ class NoteCreator {
     required int noteId,
     required List<String> fields,
     String? tags,
+    String? memo,
   }) async {
     final note = await _noteDao.getById(noteId);
     if (note == null) throw StateError('Note not found');
@@ -187,6 +199,7 @@ class NoteCreator {
       fields: fields,
       tags: tags,
       checksum: checksum,
+      memo: memo,
       mod: DateTime.now().millisecondsSinceEpoch ~/ 1000,
     ));
   }

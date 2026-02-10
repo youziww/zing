@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../database/note_dao.dart';
 import '../providers/deck_provider.dart';
 import '../models/note_type.dart';
 
@@ -21,7 +22,11 @@ class _CardEditorScreenState extends ConsumerState<CardEditorScreen> {
   NoteType? _selectedNoteType;
   List<TextEditingController> _fieldControllers = [];
   final _tagsController = TextEditingController();
+  final _memoController = TextEditingController();
   bool _saving = false;
+  bool _editLoaded = false;
+
+  bool get _isEditMode => widget.editNoteId != null;
 
   @override
   void dispose() {
@@ -29,6 +34,7 @@ class _CardEditorScreenState extends ConsumerState<CardEditorScreen> {
       c.dispose();
     }
     _tagsController.dispose();
+    _memoController.dispose();
     super.dispose();
   }
 
@@ -42,9 +48,35 @@ class _CardEditorScreenState extends ConsumerState<CardEditorScreen> {
         .toList();
   }
 
+  Future<void> _loadEditNote(List<NoteType> noteTypes) async {
+    if (_editLoaded || !_isEditMode) return;
+    _editLoaded = true;
+
+    final note = await NoteDao().getById(widget.editNoteId!);
+    if (note == null || !mounted) return;
+
+    // Find matching NoteType
+    final matchingType = noteTypes.cast<NoteType?>().firstWhere(
+      (nt) => nt!.id == note.modelId,
+      orElse: () => null,
+    );
+    if (matchingType == null) return;
+
+    setState(() {
+      _selectedNoteType = matchingType;
+      _initFieldControllers(matchingType);
+      // Fill field controllers with note data
+      for (int i = 0; i < note.fields.length && i < _fieldControllers.length; i++) {
+        _fieldControllers[i].text = note.fields[i];
+      }
+      _tagsController.text = note.tags;
+      _memoController.text = note.memo;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
-    final noteTypesAsync = ref.watch(noteTypeListProvider);
+    final noteTypesAsync = ref.watch(deckNoteTypesProvider(widget.deckId));
 
     return CupertinoPageScaffold(
       navigationBar: CupertinoNavigationBar(
@@ -64,45 +96,13 @@ class _CardEditorScreenState extends ConsumerState<CardEditorScreen> {
               _selectedNoteType = noteTypes.first;
               _initFieldControllers(_selectedNoteType!);
             }
+            if (_isEditMode && !_editLoaded) {
+              _loadEditNote(noteTypes);
+            }
 
             return ListView(
               padding: const EdgeInsets.all(16),
               children: [
-                // Note type selector
-                const Text(
-                  'Note Type',
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: CupertinoColors.systemGrey,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                CupertinoSlidingSegmentedControl<int>(
-                  groupValue: _selectedNoteType != null
-                      ? noteTypes.indexOf(_selectedNoteType!)
-                      : 0,
-                  children: {
-                    for (int i = 0; i < noteTypes.length; i++)
-                      i: Padding(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 6),
-                        child: Text(
-                          noteTypes[i].name,
-                          style: const TextStyle(fontSize: 13),
-                        ),
-                      ),
-                  },
-                  onValueChanged: (index) {
-                    if (index != null) {
-                      setState(() {
-                        _selectedNoteType = noteTypes[index];
-                        _initFieldControllers(_selectedNoteType!);
-                      });
-                    }
-                  },
-                ),
-                const SizedBox(height: 24),
-
                 // Field inputs
                 if (_selectedNoteType != null)
                   ..._buildFieldInputs(_selectedNoteType!),
@@ -122,6 +122,25 @@ class _CardEditorScreenState extends ConsumerState<CardEditorScreen> {
                   controller: _tagsController,
                   placeholder: 'space-separated tags',
                   padding: const EdgeInsets.all(12),
+                ),
+
+                const SizedBox(height: 16),
+
+                // Memo
+                const Text(
+                  'Notes',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: CupertinoColors.systemGrey,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                CupertinoTextField(
+                  controller: _memoController,
+                  placeholder: 'Personal study notes...',
+                  padding: const EdgeInsets.all(12),
+                  maxLines: 6,
+                  minLines: 3,
                 ),
               ],
             );
@@ -186,11 +205,25 @@ class _CardEditorScreenState extends ConsumerState<CardEditorScreen> {
 
     try {
       final creator = ref.read(noteCreatorProvider);
+
+      if (_isEditMode) {
+        await creator.updateNote(
+          noteId: widget.editNoteId!,
+          fields: fields,
+          tags: _tagsController.text.trim(),
+          memo: _memoController.text.trim(),
+        );
+        if (!mounted) return;
+        Navigator.pop(context);
+        return;
+      }
+
       await creator.createNote(
         deckId: widget.deckId,
         noteTypeId: _selectedNoteType!.id,
         fields: fields,
         tags: _tagsController.text.trim(),
+        memo: _memoController.text.trim(),
       );
 
       if (!mounted) return;
@@ -200,6 +233,7 @@ class _CardEditorScreenState extends ConsumerState<CardEditorScreen> {
         c.clear();
       }
       _tagsController.clear();
+      _memoController.clear();
 
       // Show brief success feedback
       showCupertinoDialog(

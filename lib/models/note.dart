@@ -8,6 +8,7 @@ class Note {
   final List<String> fields;
   final String sortField;
   final int checksum;
+  final String memo; // user's personal study notes
 
   Note({
     required this.id,
@@ -18,6 +19,7 @@ class Note {
     required this.fields,
     String? sortField,
     this.checksum = 0,
+    this.memo = '',
   }) : sortField = sortField ?? (fields.isNotEmpty ? fields[0] : '');
 
   /// Anki stores fields as unit separator (0x1f) delimited string.
@@ -33,6 +35,7 @@ class Note {
       'flds': fieldsAsString,
       'sfld': sortField,
       'csum': checksum,
+      'memo': memo,
     };
   }
 
@@ -47,6 +50,7 @@ class Note {
       fields: flds.split('\x1f'),
       sortField: map['sfld'] as String? ?? '',
       checksum: map['csum'] as int? ?? 0,
+      memo: map['memo'] as String? ?? '',
     );
   }
 
@@ -59,6 +63,7 @@ class Note {
     List<String>? fields,
     String? sortField,
     int? checksum,
+    String? memo,
   }) {
     return Note(
       id: id ?? this.id,
@@ -69,6 +74,7 @@ class Note {
       fields: fields ?? this.fields,
       sortField: sortField ?? this.sortField,
       checksum: checksum ?? this.checksum,
+      memo: memo ?? this.memo,
     );
   }
 }

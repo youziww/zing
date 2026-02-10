@@ -34,14 +34,21 @@ class DatabaseHelper {
     final path = join(dbPath, filename);
     return await openDatabase(
       path,
-      version: 1,
+      version: 2,
       onCreate: _createDB,
+      onUpgrade: _upgradeDB,
     );
   }
 
   /// For testing: initialize with a specific database instance.
   void setDatabase(Database db) {
     _database = db;
+  }
+
+  Future<void> _upgradeDB(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      await db.execute("ALTER TABLE notes ADD COLUMN memo TEXT NOT NULL DEFAULT ''");
+    }
   }
 
   Future<void> _createDB(Database db, int version) async {
@@ -62,7 +69,8 @@ class DatabaseHelper {
         tags TEXT NOT NULL DEFAULT '',
         flds TEXT NOT NULL,
         sfld TEXT NOT NULL,
-        csum INTEGER NOT NULL DEFAULT 0
+        csum INTEGER NOT NULL DEFAULT 0,
+        memo TEXT NOT NULL DEFAULT ''
       )
     ''');
 
