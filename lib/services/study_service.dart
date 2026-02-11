@@ -6,6 +6,14 @@ import '../models/review_log.dart';
 import '../scheduler/scheduler.dart';
 import '../scheduler/deck_options.dart';
 
+/// Snapshot for undoing a card answer.
+class UndoInfo {
+  final ReviewCard originalCard;
+  final int reviewLogId;
+
+  UndoInfo({required this.originalCard, required this.reviewLogId});
+}
+
 /// Manages study sessions.
 class StudyService {
   final CardDao _cardDao = CardDao();
@@ -34,8 +42,12 @@ class StudyService {
   }
 
   /// Answer a card with the given ease rating.
-  Future<ReviewCard> answerCard(
+  /// Returns the updated card and undo info for reverting the answer.
+  Future<({ReviewCard updatedCard, UndoInfo undoInfo})> answerCard(
       ReviewCard card, int ease, DeckOptions options) async {
+    // Snapshot the card before mutation
+    final snapshot = card.copyWith();
+
     final col = await _dbHelper.getCollection();
     final scheduler = Scheduler(
       today: col.today,
@@ -61,7 +73,16 @@ class StudyService {
     );
     await _reviewDao.insert(log);
 
-    return updatedCard;
+    return (
+      updatedCard: updatedCard,
+      undoInfo: UndoInfo(originalCard: snapshot, reviewLogId: log.id),
+    );
+  }
+
+  /// Undo a previous answer: restore the card and delete the review log.
+  Future<void> undoAnswer(UndoInfo info) async {
+    await _cardDao.update(info.originalCard);
+    await _reviewDao.deleteById(info.reviewLogId);
   }
 
   int _getReviewType(ReviewCard card) {

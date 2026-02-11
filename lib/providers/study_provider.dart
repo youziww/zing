@@ -9,6 +9,8 @@ import '../services/study_service.dart';
 import '../scheduler/deck_options.dart';
 import 'deck_provider.dart';
 
+export '../services/study_service.dart' show UndoInfo;
+
 /// State for a study session.
 class StudySessionState {
   final int deckId;
@@ -18,6 +20,7 @@ class StudySessionState {
   final Map<int, String> nextReviewTimes;
   final bool isFinished;
   final Map<String, int> counts; // new, learn, review
+  final bool canUndo;
 
   StudySessionState({
     required this.deckId,
@@ -27,6 +30,7 @@ class StudySessionState {
     this.nextReviewTimes = const {},
     this.isFinished = false,
     this.counts = const {'new': 0, 'learn': 0, 'review': 0},
+    this.canUndo = false,
   });
 
   ReviewCard? get currentCard =>
@@ -44,6 +48,7 @@ class StudySessionState {
     Map<int, String>? nextReviewTimes,
     bool? isFinished,
     Map<String, int>? counts,
+    bool? canUndo,
   }) {
     return StudySessionState(
       deckId: deckId ?? this.deckId,
@@ -53,6 +58,7 @@ class StudySessionState {
       nextReviewTimes: nextReviewTimes ?? this.nextReviewTimes,
       isFinished: isFinished ?? this.isFinished,
       counts: counts ?? this.counts,
+      canUndo: canUndo ?? this.canUndo,
     );
   }
 }
@@ -68,9 +74,11 @@ class StudySessionNotifier
   final _noteTypeDao = NoteTypeDao();
   final _dbHelper = DatabaseHelper.instance;
   late DeckOptions _options;
+  UndoInfo? _lastUndo;
 
   @override
   Future<StudySessionState> build(int arg) async {
+    _lastUndo = null;
     _options = await ref.read(deckListProvider.notifier).getDeckOptions(arg);
     return _loadSession(arg);
   }
@@ -114,11 +122,29 @@ class StudySessionNotifier
     final current = state.valueOrNull;
     if (current == null || current.currentCard == null) return;
 
-    await _studyService.answerCard(current.currentCard!, ease, _options);
+    final result = await _studyService.answerCard(current.currentCard!, ease, _options);
+    _lastUndo = result.undoInfo;
 
     // Reload the study queue
     final newState = await _loadSession(current.deckId);
-    state = AsyncValue.data(newState);
+    state = AsyncValue.data(newState.copyWith(canUndo: true));
+
+    // Refresh deck list counts
+    ref.invalidate(deckListProvider);
+  }
+
+  Future<void> undoLastAnswer() async {
+    final undo = _lastUndo;
+    if (undo == null) return;
+    _lastUndo = null;
+
+    await _studyService.undoAnswer(undo);
+
+    // Reload the study queue
+    final current = state.valueOrNull;
+    if (current == null) return;
+    final newState = await _loadSession(current.deckId);
+    state = AsyncValue.data(newState.copyWith(canUndo: false));
 
     // Refresh deck list counts
     ref.invalidate(deckListProvider);

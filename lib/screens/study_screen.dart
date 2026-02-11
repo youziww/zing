@@ -58,14 +58,7 @@ class _StudyScreenState extends ConsumerState<StudyScreen> {
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),
-        trailing: sessionAsync.valueOrNull?.isShowingAnswer == true &&
-                _cardContent != null
-            ? CupertinoButton(
-                padding: EdgeInsets.zero,
-                onPressed: _editCurrentCard,
-                child: const Icon(CupertinoIcons.pencil, size: 22),
-              )
-            : null,
+        trailing: _buildNavTrailing(sessionAsync.valueOrNull),
       ),
       child: SafeArea(
         child: sessionAsync.when(
@@ -77,6 +70,30 @@ class _StudyScreenState extends ConsumerState<StudyScreen> {
           error: (e, _) => Center(child: Text('Error: $e')),
         ),
       ),
+    );
+  }
+
+  Widget? _buildNavTrailing(StudySessionState? session) {
+    if (session == null) return null;
+    final showEdit = session.isShowingAnswer && _cardContent != null;
+    final showUndo = session.canUndo;
+    if (!showEdit && !showUndo) return null;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (showUndo)
+          CupertinoButton(
+            padding: EdgeInsets.zero,
+            onPressed: _undo,
+            child: const Icon(CupertinoIcons.arrow_uturn_left, size: 22),
+          ),
+        if (showEdit)
+          CupertinoButton(
+            padding: EdgeInsets.zero,
+            onPressed: _editCurrentCard,
+            child: const Icon(CupertinoIcons.pencil, size: 22),
+          ),
+      ],
     );
   }
 
@@ -107,6 +124,20 @@ class _StudyScreenState extends ConsumerState<StudyScreen> {
               child: const Text('Back to Decks'),
               onPressed: () => Navigator.pop(context),
             ),
+            if (session.canUndo) ...[
+              const SizedBox(height: 8),
+              CupertinoButton(
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(CupertinoIcons.arrow_uturn_left, size: 18),
+                    SizedBox(width: 6),
+                    Text('Undo'),
+                  ],
+                ),
+                onPressed: () => _undo(),
+              ),
+            ],
           ],
         ),
       ),
@@ -267,6 +298,11 @@ class _StudyScreenState extends ConsumerState<StudyScreen> {
       ),
     );
     // Reload content after edit
+    _loadContent();
+  }
+
+  Future<void> _undo() async {
+    await ref.read(studySessionProvider(widget.deckId).notifier).undoLastAnswer();
     _loadContent();
   }
 

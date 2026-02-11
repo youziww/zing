@@ -67,6 +67,12 @@ class ReviewDao {
     ) ?? 0;
   }
 
+  /// Delete a single review log by ID.
+  Future<int> deleteById(int id) async {
+    final db = await _db;
+    return await db.delete('revlog', where: 'id = ?', whereArgs: [id]);
+  }
+
   /// Delete reviews for a card.
   Future<int> deleteByCardId(int cardId) async {
     final db = await _db;
