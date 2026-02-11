@@ -85,7 +85,14 @@ class _StudyScreenState extends ConsumerState<StudyScreen> {
           CupertinoButton(
             padding: EdgeInsets.zero,
             onPressed: _undo,
-            child: const Icon(CupertinoIcons.arrow_uturn_left, size: 22),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(CupertinoIcons.arrow_uturn_left, size: 18),
+                SizedBox(width: 3),
+                Text('撤销', style: TextStyle(fontSize: 15)),
+              ],
+            ),
           ),
         if (showEdit)
           CupertinoButton(
