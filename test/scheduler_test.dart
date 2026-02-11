@@ -325,6 +325,95 @@ void main() {
     });
   });
 
+  group('Undo - Snapshot Integrity', () {
+    test('copyWith snapshot preserves original state after answer', () {
+      final card = ReviewCard(
+        id: 1, noteId: 1, deckId: 1,
+        type: CardType.review,
+        queue: CardQueue.review,
+        due: 90,
+        interval: 10,
+        easeFactor: 2500,
+        reps: 5,
+        lapses: 0,
+      );
+
+      final snapshot = card.copyWith();
+      final result = scheduler.answerCard(card, Ease.again, options);
+      final updated = result.applyTo(card);
+
+      // Snapshot retains pre-answer values
+      expect(snapshot.type, CardType.review);
+      expect(snapshot.queue, CardQueue.review);
+      expect(snapshot.due, 90);
+      expect(snapshot.interval, 10);
+      expect(snapshot.easeFactor, 2500);
+      expect(snapshot.reps, 5);
+      expect(snapshot.lapses, 0);
+
+      // Updated card has changed
+      expect(updated.queue, CardQueue.relearning);
+      expect(updated.lapses, 1);
+      expect(updated.easeFactor, 2300);
+    });
+
+    test('snapshot is independent from original card mutations', () {
+      final card = ReviewCard(
+        id: 2, noteId: 2, deckId: 1,
+        type: CardType.newCard,
+        queue: CardQueue.newQueue,
+        easeFactor: 2500,
+      );
+
+      final snapshot = card.copyWith();
+
+      // Mutate original via applyTo
+      final result = scheduler.answerCard(card, Ease.good, options);
+      result.applyTo(card);
+
+      // Snapshot fields unchanged
+      expect(snapshot.type, CardType.newCard);
+      expect(snapshot.queue, CardQueue.newQueue);
+      expect(snapshot.easeFactor, 2500);
+      expect(snapshot.reps, 0);
+    });
+
+    test('snapshot preserves all fields for review card undo', () {
+      final card = ReviewCard(
+        id: 3, noteId: 3, deckId: 1,
+        type: CardType.review,
+        queue: CardQueue.review,
+        due: 95,
+        interval: 20,
+        easeFactor: 1800,
+        reps: 12,
+        lapses: 3,
+        left: 0,
+        originalDue: 0,
+        originalDeckId: 0,
+      );
+
+      final snapshot = card.copyWith();
+
+      // Answer Easy — big changes
+      final result = scheduler.answerCard(card, Ease.easy, options);
+      final updated = result.applyTo(card);
+
+      // Verify snapshot has exact original values
+      expect(snapshot.id, card.id);
+      expect(snapshot.interval, 20);
+      expect(snapshot.easeFactor, 1800);
+      expect(snapshot.reps, 12);
+      expect(snapshot.lapses, 3);
+      expect(snapshot.due, 95);
+
+      // Updated card differs
+      expect(updated.easeFactor, 1950);
+      expect(updated.interval, greaterThan(20));
+      expect(updated.reps, 13);
+    });
+  });
+
   group('Card State', () {
     test('describeNextReview for learning (seconds)', () {
       final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
