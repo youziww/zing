@@ -58,6 +58,6 @@ samples, guidance on mobile development, and a full API reference.
 
 ### P2 — 差异化亮点
 - [ ] Widget 小组件 — 主屏显示今日待复习数
-- [ ] 学习连续天数/打卡
+- [ ] /打卡
 - [ ] Shortcuts 捷径集成
 - [ ] iPad 分栏布局
