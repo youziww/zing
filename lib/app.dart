@@ -10,7 +10,6 @@ class ZingApp extends StatelessWidget {
       title: 'Zing',
       theme: CupertinoThemeData(
         primaryColor: CupertinoColors.systemBlue,
-        brightness: Brightness.light,
       ),
       home: DeckListScreen(),
       debugShowCheckedModeBanner: false,

@@ -1,3 +1,4 @@
+import 'package:flutter/widgets.dart' show Brightness;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/card.dart';
 import '../models/note.dart';
@@ -198,24 +199,26 @@ class CardContent {
   bool get _isBiaori => _fieldMap.containsKey('日语') && _fieldMap.containsKey('中文');
 
   /// Render front HTML.
-  String get frontHtml {
-    if (_isComplex) return _wrapWithCss(_simpleFront());
-    if (_isBiaori) return _wrapWithCss(_biaoriFront());
+  String frontHtml([Brightness brightness = Brightness.light]) {
+    final dark = brightness == Brightness.dark;
+    if (_isComplex) return _wrapWithCss(_simpleFront(dark: dark), dark: dark);
+    if (_isBiaori) return _wrapWithCss(_biaoriFront(), dark: dark);
     if (card.ord < noteType.templates.length) {
       var html = noteType.templates[card.ord].frontHtml;
       html = _render(html);
       if (noteType.isCloze) {
         html = _processCloze(html, card.ord + 1, showAnswer: false);
       }
-      return _wrapWithCss(html);
+      return _wrapWithCss(html, dark: dark);
     }
-    return _wrapWithCss(note.fields.isNotEmpty ? note.fields[0] : '');
+    return _wrapWithCss(note.fields.isNotEmpty ? note.fields[0] : '', dark: dark);
   }
 
   /// Render back HTML.
-  String get backHtml {
-    if (_isComplex) return _wrapWithCss(_simpleBack());
-    if (_isBiaori) return _wrapWithCss(_biaoriBack());
+  String backHtml([Brightness brightness = Brightness.light]) {
+    final dark = brightness == Brightness.dark;
+    if (_isComplex) return _wrapWithCss(_simpleBack(dark: dark), dark: dark);
+    if (_isBiaori) return _wrapWithCss(_biaoriBack(dark: dark), dark: dark);
     if (card.ord < noteType.templates.length) {
       var html = noteType.templates[card.ord].backHtml;
       html = html.replaceAll('{{FrontSide}}', _renderRaw(noteType.templates[card.ord].frontHtml));
@@ -223,9 +226,9 @@ class CardContent {
       if (noteType.isCloze) {
         html = _processCloze(html, card.ord + 1, showAnswer: true);
       }
-      return _wrapWithCss(html);
+      return _wrapWithCss(html, dark: dark);
     }
-    return _wrapWithCss(note.fields.length > 1 ? note.fields[1] : '');
+    return _wrapWithCss(note.fields.length > 1 ? note.fields[1] : '', dark: dark);
   }
 
   String get frontHtmlRaw {
@@ -238,7 +241,7 @@ class CardContent {
   }
 
   /// Simplified front for complex note types (e.g., JLPT vocabulary).
-  String _simpleFront() {
+  String _simpleFront({bool dark = false}) {
     final m = _fieldMap;
     // Try common vocabulary field names
     final kanji = m['VocabKanji'] ?? m['Front'] ?? m['Word'] ?? m['Expression']
@@ -248,14 +251,14 @@ class CardContent {
     buf.write('<div style="text-align:center; padding:20px;">');
     buf.write('<h1 style="font-size:48px; margin:20px 0; font-weight:normal;" lang="ja">$kanji</h1>');
     if (pitch.isNotEmpty) {
-      buf.write('<div style="font-size:18px; color:#999;">$pitch</div>');
+      buf.write('<div style="font-size:18px; color:${dark ? '#888' : '#999'};">$pitch</div>');
     }
     buf.write('</div>');
     return buf.toString();
   }
 
   /// Simplified back for complex note types.
-  String _simpleBack() {
+  String _simpleBack({bool dark = false}) {
     final m = _fieldMap;
     final kanji = m['VocabKanji'] ?? m['Front'] ?? (note.fields.isNotEmpty ? note.fields[0] : '');
     final furigana = _clean(m['VocabFurigana'] ?? m['Reading'] ?? '');
@@ -264,6 +267,12 @@ class CardContent {
     final defSC = _clean(m['VocabDefSC'] ?? m['VocabDef'] ?? m['Back'] ?? m['Meaning']
         ?? (note.fields.length > 1 ? note.fields[1] : ''));
     final plus = _clean(m['VocabPlus'] ?? '');
+
+    final cSub = dark ? '#aaa' : '#666';
+    final cMuted = dark ? '#888' : '#999';
+    final cBody = dark ? '#ddd' : '#333';
+    final cPlus = dark ? '#999' : '#888';
+    final cBorder = dark ? '#444' : '#ddd';
 
     // Collect up to 2 non-empty example sentences with furigana ruby
     final sentences = <({String sentence, String def})>[];
@@ -283,21 +292,21 @@ class CardContent {
     buf.write('<div style="text-align:center; padding:16px; font-size:16px; line-height:1.8;">');
     buf.write('<h1 style="font-size:42px; margin:10px 0; font-weight:normal;" lang="ja">$kanji</h1>');
     if (furigana.isNotEmpty) {
-      buf.write('<div style="font-size:22px; color:#666;" lang="ja">$furigana');
-      if (pitch.isNotEmpty) buf.write(' <span style="color:#999; font-size:16px;">$pitch</span>');
-      if (pos.isNotEmpty) buf.write(' <span style="color:#999; font-size:14px;">[$pos]</span>');
+      buf.write('<div style="font-size:22px; color:$cSub;" lang="ja">$furigana');
+      if (pitch.isNotEmpty) buf.write(' <span style="color:$cMuted; font-size:16px;">$pitch</span>');
+      if (pos.isNotEmpty) buf.write(' <span style="color:$cMuted; font-size:14px;">[$pos]</span>');
       buf.write('</div>');
     }
-    buf.write('<div style="font-size:20px; margin:16px 0; color:#333;">$defSC</div>');
+    buf.write('<div style="font-size:20px; margin:16px 0; color:$cBody;">$defSC</div>');
     if (plus.isNotEmpty) {
-      buf.write('<div style="font-size:14px; color:#888; margin:8px 0;">$plus</div>');
+      buf.write('<div style="font-size:14px; color:$cPlus; margin:8px 0;">$plus</div>');
     }
     if (sentences.isNotEmpty) {
-      buf.write('<hr style="border:none; border-top:1px solid #ddd; margin:16px 0;">');
+      buf.write('<hr style="border:none; border-top:1px solid $cBorder; margin:16px 0;">');
       for (final s in sentences) {
         buf.write('<div style="font-size:18px; text-align:left;" lang="ja">${s.sentence}</div>');
         if (s.def.isNotEmpty) {
-          buf.write('<div style="font-size:16px; text-align:left; color:#666; margin-top:4px;">${s.def}</div>');
+          buf.write('<div style="font-size:16px; text-align:left; color:$cSub; margin-top:4px;">${s.def}</div>');
         }
         if (s != sentences.last) {
           buf.write('<div style="margin:10px 0;"></div>');
@@ -321,7 +330,7 @@ class CardContent {
   }
 
   /// Biaori back: word + meaning + POS + lesson.
-  String _biaoriBack() {
+  String _biaoriBack({bool dark = false}) {
     final m = _fieldMap;
     final raw = m['日语'] ?? '';
     final ruby = _biaoriToRuby(raw);
@@ -329,12 +338,15 @@ class CardContent {
     final pos = m['词性'] ?? '';
     final lesson = m['课号'] ?? '';
 
+    final cBody = dark ? '#ddd' : '#333';
+    final cMuted = dark ? '#888' : '#999';
+
     final buf = StringBuffer();
     buf.write('<div style="text-align:center; padding:16px; line-height:1.8;">');
     buf.write('<h1 style="font-size:42px; margin:10px 0; font-weight:normal;" lang="ja">$ruby</h1>');
-    buf.write('<div style="font-size:20px; margin:16px 0; color:#333;">$meaning</div>');
+    buf.write('<div style="font-size:20px; margin:16px 0; color:$cBody;">$meaning</div>');
     if (pos.isNotEmpty || lesson.isNotEmpty) {
-      buf.write('<div style="font-size:14px; color:#999;">');
+      buf.write('<div style="font-size:14px; color:$cMuted;">');
       if (pos.isNotEmpty) buf.write(pos);
       if (pos.isNotEmpty && lesson.isNotEmpty) buf.write('　');
       if (lesson.isNotEmpty) buf.write(lesson);
@@ -449,17 +461,22 @@ class CardContent {
     });
   }
 
-  String _wrapWithCss(String html) {
+  String _wrapWithCss(String html, {bool dark = false}) {
+    final bodyStyle = dark
+        ? 'color:#e0e0e0; background:#1c1c1e;'
+        : 'color:inherit;';
+    final clozeColor = dark ? '#5ac8fa' : '#00f';
+    final rtColor = dark ? '#999' : '#888';
     return '''
 <!DOCTYPE html>
 <html>
 <head>
 <meta charset="UTF-8">
 <style>
-body { font-family: -apple-system, 'Hiragino Sans', 'PingFang SC', sans-serif; margin: 0; padding: 8px; }
-.cloze { font-weight: bold; color: #00f; }
+body { font-family: -apple-system, 'Hiragino Sans', 'PingFang SC', sans-serif; margin: 0; padding: 8px; $bodyStyle }
+.cloze { font-weight: bold; color: $clozeColor; }
 ruby { ruby-position: over; }
-rt { font-size: 0.6em; color: #888; }
+rt { font-size: 0.6em; color: $rtColor; }
 </style>
 </head>
 <body>

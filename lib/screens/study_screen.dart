@@ -203,9 +203,10 @@ class _StudyScreenState extends ConsumerState<StudyScreen> {
       return const Center(child: CupertinoActivityIndicator());
     }
 
+    final brightness = MediaQuery.platformBrightnessOf(context);
     final html = session.isShowingAnswer
-        ? _cardContent!.backHtml
-        : _cardContent!.frontHtml;
+        ? _cardContent!.backHtml(brightness)
+        : _cardContent!.frontHtml(brightness);
     final memo = _cardContent!.note.memo;
 
     return Container(

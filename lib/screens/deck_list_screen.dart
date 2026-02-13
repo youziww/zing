@@ -55,7 +55,7 @@ class DeckListScreen extends ConsumerWidget {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
                   decoration: BoxDecoration(
-                    color: CupertinoColors.white,
+                    color: CupertinoColors.secondarySystemGroupedBackground,
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Row(
@@ -126,9 +126,9 @@ class DeckListScreen extends ConsumerWidget {
             // Bottom action bar
             Container(
               padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
-              decoration: const BoxDecoration(
-                color: CupertinoColors.white,
-                border: Border(
+              decoration: BoxDecoration(
+                color: CupertinoColors.secondarySystemGroupedBackground.resolveFrom(context),
+                border: const Border(
                   top: BorderSide(color: CupertinoColors.separator, width: 0.5),
                 ),
               ),
@@ -331,7 +331,7 @@ class _DeckSectionState extends ConsumerState<_DeckSection> {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       child: Container(
         decoration: BoxDecoration(
-          color: CupertinoColors.white,
+          color: CupertinoColors.secondarySystemGroupedBackground,
           borderRadius: BorderRadius.circular(12),
         ),
         clipBehavior: Clip.antiAlias,
