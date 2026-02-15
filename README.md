@@ -63,3 +63,4 @@ samples, guidance on mobile development, and a full API reference.
 - [ ] iPad 分栏布局
 
 iwtach协同,可以在iwatch上记单词
+增加用户注册登陆功能
